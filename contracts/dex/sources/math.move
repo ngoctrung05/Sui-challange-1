@@ -2,7 +2,6 @@
 /// Contains mathematical functions for constant product AMM
 module dex::math;
 
-// ===== Constants =====
 /// Fee denominator (basis points: 10000 = 100%)
 const FEE_DENOMINATOR: u64 = 10000;
 
@@ -15,11 +14,24 @@ const E_RESERVES_EMPTY: u64 = 5;
 /// Calculate square root using Newton's method (Babylonian method)
 /// Used for initial LP token calculation: LP = sqrt(x * y)
 public fun sqrt(x: u64): u64 {
-    0
+    sqrt_u128(x as u128) as u64
 }
 
 /// Calculate square root for u128 (for large intermediate values)
-public fun sqrt_u128(x: u128): u128 { 0 }
+public fun sqrt_u128(n: u128): u128 {
+    if (n == 0) {
+        return 0
+    };
+    let mut x = n;
+    let mut y = ((x as u256 + 1 as u256) >> 1) as u128;
+
+    while (y < x) {
+        x = y;
+        y = (n / x + x) >> 1;
+    };
+
+    x
+}
 
 // ===== Utility Functions =====
 
@@ -45,13 +57,21 @@ public fun calculate_swap_output(
     reserve_out: u64,
     fee_bps: u64,
 ): u64 {
-    0
+    assert!(reserve_in > 0, E_RESERVES_EMPTY);
+    assert!(reserve_out > 0, E_RESERVES_EMPTY);
+    assert!(amount_in > 0, E_ZERO_AMOUNT);
+
+    let amount_out =
+        (amount_in as u128) * ((FEE_DENOMINATOR - fee_bps) as u128) * (reserve_out as u128)
+        / ((reserve_in as u128) * (FEE_DENOMINATOR as u128) + (amount_in as u128) * ((FEE_DENOMINATOR - fee_bps) as u128));
+
+    amount_out as u64
 }
 
 /// Calculate initial LP tokens using geometric mean
 /// LP = sqrt(amount_x * amount_y)
 public fun calculate_initial_lp(amount_x: u64, amount_y: u64): u64 {
-    0
+    sqrt_u128((amount_x as u128) * (amount_y as u128)) as u64
 }
 
 /// Calculate LP tokens for subsequent deposits
@@ -63,7 +83,15 @@ public fun calculate_subsequent_lp(
     reserve_y: u64,
     lp_supply: u64,
 ): u64 {
-    0
+    assert!(reserve_x > 0, E_RESERVES_EMPTY);
+    assert!(reserve_y > 0, E_RESERVES_EMPTY);
+    assert!(amount_x > 0, E_ZERO_AMOUNT);
+    assert!(amount_y > 0, E_ZERO_AMOUNT);
+
+    min(
+        ((amount_x as u128) * (lp_supply as u128) / (reserve_x as u128)) as u64,
+        ((amount_y as u128) * (lp_supply as u128) / (reserve_y as u128)) as u64,
+    )
 }
 
 /// Calculate token amounts to return when removing liquidity
@@ -74,7 +102,13 @@ public fun calculate_remove_liquidity(
     reserve_x: u64,
     reserve_y: u64,
 ): (u64, u64) {
-    (0, 0)
+    assert!(lp_supply > 0, E_ZERO_AMOUNT);
+    assert!(reserve_x > 0, E_RESERVES_EMPTY);
+    assert!(reserve_y > 0, E_RESERVES_EMPTY);
+    let amount_x = ((lp_amount as u128) * (reserve_x as u128) / (lp_supply as u128)) as u64;
+    let amount_y = ((lp_amount as u128) * (reserve_y as u128) / (lp_supply as u128)) as u64;
+
+    (amount_x, amount_y)
 }
 
 /// Get the fee denominator constant
